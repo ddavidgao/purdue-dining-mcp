@@ -51,8 +51,8 @@ uv run purdue-dining
 | `get_started` | First-time onboarding — walks you through setting up preferences |
 | `what_should_i_eat` | Personalized recommendations based on your history + live menus |
 | `get_menu` | Full menu for any dining location |
-| `whats_open` | Which locations are open right now |
-| `check_time` | Current meal period + urgency info |
+| `whats_open` | Which locations are open right now (real-time from API) |
+| `check_time` | Current meal period + urgency based on actual closing times |
 | `log_meal` | Log what you ate with mood/rating/notes |
 | `rate_item` | Quick 1-5 rating for a food item |
 | `set_preference` | Set allergies, dislikes, favorites, diet goals |

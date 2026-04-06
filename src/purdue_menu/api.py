@@ -113,24 +113,72 @@ def get_current_meal_type() -> str:
         return "Dinner"
 
 
-def get_time_context() -> dict:
-    """Get rich time context for recommendations."""
-    now = datetime.now()
+def parse_upcoming_meals(locations: list[dict]) -> list[dict]:
+    """Parse UpcomingMeals from the locations API into a flat list with open/closed status.
+
+    Returns a list of dicts with: location, meal_name, start, end, is_open
+    """
+    now = datetime.now().astimezone()
+    results = []
+    for loc in locations:
+        name = loc.get("FormalName", loc.get("Name", "Unknown"))
+        for meal in loc.get("UpcomingMeals", []):
+            start = datetime.fromisoformat(meal["StartTime"])
+            end = datetime.fromisoformat(meal["EndTime"])
+            results.append({
+                "location": name,
+                "location_short": loc.get("Name", name),
+                "meal_name": meal.get("Name", ""),
+                "start": start,
+                "end": end,
+                "is_open": start <= now <= end,
+                "start_fmt": start.strftime("%-I:%M %p"),
+                "end_fmt": end.strftime("%-I:%M %p"),
+            })
+    return results
+
+
+def get_time_context(upcoming_meals: list[dict] | None = None) -> dict:
+    """Get rich time context for recommendations.
+
+    If upcoming_meals is provided (from parse_upcoming_meals), uses real closing
+    times for urgency. Otherwise falls back to heuristics.
+    """
+    now = datetime.now().astimezone()
     hour = now.hour
     day_of_week = now.strftime("%A")
     is_weekend = day_of_week in ("Saturday", "Sunday")
 
     meal_type = get_current_meal_type()
 
-    # Dining courts typically close around 8-9 PM
-    if hour >= 20:
-        urgency = "late — dining courts may be closing soon"
-    elif hour >= 19:
-        urgency = "getting late for dinner"
-    elif 14 <= hour < 17:
-        urgency = "between meals — limited options"
+    # Try to compute urgency from real data
+    urgency = "normal hours"
+    if upcoming_meals is not None:
+        open_meals = [m for m in upcoming_meals if m["is_open"]]
+        if open_meals:
+            # Find the latest closing time among currently open meals
+            latest_close = max(m["end"] for m in open_meals)
+            mins_left = (latest_close - now).total_seconds() / 60
+            if mins_left <= 15:
+                urgency = f"closing soon — last locations close at {latest_close.strftime('%-I:%M %p')}"
+            elif mins_left <= 30:
+                urgency = f"getting late — last locations close at {latest_close.strftime('%-I:%M %p')}"
+            else:
+                urgency = "normal hours"
+        else:
+            # Nothing open right now — check what's coming next
+            future_meals = [m for m in upcoming_meals if m["start"] > now]
+            if future_meals:
+                next_meal = min(future_meals, key=lambda m: m["start"])
+                urgency = f"closed now — next meal: {next_meal['meal_name']} at {next_meal['start_fmt']} ({next_meal['location']})"
+            else:
+                urgency = "all dining locations are closed for the day"
     else:
-        urgency = "normal hours"
+        # Fallback heuristics when we don't have API data
+        if hour >= 21:
+            urgency = "late — dining courts are likely closed"
+        elif 14 <= hour < 17:
+            urgency = "between meals — limited options"
 
     return {
         "time": now.strftime("%I:%M %p"),

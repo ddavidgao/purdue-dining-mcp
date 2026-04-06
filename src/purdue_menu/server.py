@@ -12,15 +12,38 @@ mcp = FastMCP(
     instructions="""You are a Purdue dining assistant that helps the user decide what to eat.
 You learn their preferences over time — what they like, where they eat, how they feel.
 
-IMPORTANT: On first interaction, ALWAYS call get_started first. If it says the user is new
-(no preferences or ratings), walk them through setup conversationally — ask about allergies,
-food they love, food they hate, where they usually eat, and any diet goals. Use set_preference
-to save each answer. Make it feel like a quick friendly chat, not a form.
+IMPORTANT: On first interaction, ALWAYS call get_started first.
+- If it says the user is new (no preferences or ratings), walk them through setup
+  conversationally — ask about allergies, food they love, food they hate, where they
+  usually eat, and any diet goals. Use set_preference to save each answer.
+- If it says the user is AWAY FROM CAMPUS, do NOT proactively call dining tools.
+  Just chat normally. Only use dining tools if they explicitly ask about menus or dining.
+  Mention they can say "I'm back on campus" to re-enable proactive dining suggestions.
 
 When they say "I'm hungry" or "I'm at Wiley", use the what_should_i_eat tool.
+When they say "I'm leaving campus" or "going on vacation", use set_campus_status(false).
+When they say "I'm back" or "back on campus", use set_campus_status(true).
 When they tell you what they ate or rate food, use log_meal or rate_item.
 Be casual and helpful. You know the Purdue dining courts.""",
 )
+
+
+@mcp.tool()
+def set_campus_status(on_campus: bool) -> str:
+    """Toggle whether the user is currently on/near Purdue campus.
+
+    Use this when someone says "I'm leaving campus", "going on break",
+    "I'm back at Purdue", etc. When off-campus, the assistant won't
+    proactively suggest dining tools.
+
+    Args:
+        on_campus: True if at/near Purdue, False if away (vacation, break, etc.)
+    """
+    db.set_preference("on_campus", str(on_campus).lower())
+    if on_campus:
+        return "Welcome back! Campus dining tools are active again. Say 'I'm hungry' anytime."
+    else:
+        return "Got it — dining suggestions paused. Say 'I'm back on campus' when you return!"
 
 
 @mcp.tool()
@@ -48,6 +71,10 @@ def get_started() -> str:
     has_ratings = len(ratings) > 0
     has_meals = len(meals) > 0
 
+    # Check campus status
+    campus_values = prefs.get("on_campus", [])
+    on_campus = campus_values[0] != "false" if campus_values else True
+
     if total_prefs == 0 and not has_ratings and not has_meals:
         return (
             "NEW_USER: This user has no preferences, ratings, or meal history. "
@@ -60,6 +87,9 @@ def get_started() -> str:
 
     # Returning user — show their profile summary
     lines = ["RETURNING_USER: Profile loaded."]
+    if not on_campus:
+        lines.append("  ⚠️ AWAY FROM CAMPUS — do NOT proactively call dining tools.")
+        lines.append("  Only use dining tools if the user explicitly asks about menus.")
     lines.append(f"  Preferences: {total_prefs} set")
     if has_ratings:
         all_ratings = db.get_ratings(limit=10000)
@@ -72,24 +102,32 @@ def get_started() -> str:
             top = max(loc_freq, key=loc_freq.get)
             lines.append(f"  Top location: {top} ({loc_freq[top]} visits)")
 
-    # Show profile
-    if prefs:
+    # Show profile (exclude on_campus from display — it's internal)
+    display_prefs = {k: v for k, v in prefs.items() if k != "on_campus"}
+    if display_prefs:
         lines.append("\n  Current profile:")
-        for key, values in prefs.items():
+        for key, values in display_prefs.items():
             lines.append(f"    {key}: {', '.join(values)}")
 
     return "\n".join(lines)
 
 
 @mcp.tool()
-def check_time() -> str:
+async def check_time() -> str:
     """Get current time context for dining decisions.
 
     Returns the current time, day, meal period, and any urgency notes.
     Use this to factor time into food recommendations — it matters whether it's
     7 AM on a Monday or 8 PM on a Saturday.
     """
-    ctx = api.get_time_context()
+    # Fetch real hours for accurate urgency info
+    try:
+        locations_data = await api.get_locations()
+        upcoming_meals = api.parse_upcoming_meals(locations_data)
+    except Exception:
+        upcoming_meals = None
+
+    ctx = api.get_time_context(upcoming_meals=upcoming_meals)
     lines = [
         f"🕐 {ctx['time']} — {ctx['day']}",
         f"🍽 Current meal: {ctx['meal_type']}",
@@ -108,26 +146,34 @@ async def whats_open() -> str:
     Use this when someone asks "what's open?" or "where can I eat right now?"
     """
     locations = await api.get_locations()
-    now = datetime.now()
+    meals = api.parse_upcoming_meals(locations)
+    now = datetime.now().astimezone()
     current_time = now.strftime("%I:%M %p")
 
-    open_locations = []
-    for loc in locations:
-        name = loc.get("FormalName", loc.get("Name", "Unknown"))
-        # Check if any meal is currently being served
-        normal_hours = loc.get("NormalHours", [])
-        for hours in normal_hours:
-            meal_name = hours.get("Name", "")
-            start = hours.get("StartTime")
-            end = hours.get("EndTime")
-            if start and end:
-                open_locations.append(f"• {name} — {meal_name} ({start} - {end})")
+    open_now = [m for m in meals if m["is_open"]]
+    coming_soon = [m for m in meals if m["start"] > now]
 
-    if not open_locations:
-        return f"No dining locations appear to be open right now ({current_time}). This may be because the API doesn't have today's data yet."
+    lines = []
+    if open_now:
+        lines.append(f"Open right now ({current_time}):\n")
+        for m in sorted(open_now, key=lambda x: x["location"]):
+            mins_left = int((m["end"] - now).total_seconds() / 60)
+            closing_note = f" — closes in {mins_left} min!" if mins_left <= 30 else ""
+            lines.append(f"• {m['location']} — {m['meal_name']} ({m['start_fmt']} - {m['end_fmt']}){closing_note}")
+    else:
+        lines.append(f"Nothing is open right now ({current_time}).")
 
-    header = f"Open dining locations as of {current_time}:\n"
-    return header + "\n".join(open_locations)
+    if coming_soon:
+        # Show up to 5 upcoming meals
+        upcoming = sorted(coming_soon, key=lambda x: x["start"])[:5]
+        lines.append("\nComing up:")
+        for m in upcoming:
+            lines.append(f"• {m['location']} — {m['meal_name']} ({m['start_fmt']} - {m['end_fmt']})")
+
+    if not open_now and not coming_soon:
+        lines.append("No upcoming meals found. Dining may be closed for the day or the API doesn't have today's data yet.")
+
+    return "\n".join(lines)
 
 
 @mcp.tool()
@@ -187,7 +233,14 @@ async def what_should_i_eat(
         mood: Optional — how the user feels (e.g. "tired", "stressed", "great", "lazy")
         hunger_level: Optional — 1 (snack) to 5 (starving)
     """
-    time_ctx = api.get_time_context()
+    # Fetch real hours from the API for accurate time context
+    try:
+        locations_data = await api.get_locations()
+        upcoming_meals = api.parse_upcoming_meals(locations_data)
+    except Exception:
+        upcoming_meals = None
+
+    time_ctx = api.get_time_context(upcoming_meals=upcoming_meals)
     current_meal = time_ctx["meal_type"]
     # "Late Lunch" isn't an API meal type — map to what the API uses
     meal_filter = "Lunch" if current_meal == "Late Lunch" else current_meal
