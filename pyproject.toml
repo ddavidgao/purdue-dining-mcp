@@ -17,6 +17,7 @@ classifiers = [
 dependencies = [
     "httpx>=0.28.1",
     "mcp[cli]>=1.27.0",
+    "uvicorn>=0.34.0",
 ]
 
 [project.urls]
@@ -26,6 +27,7 @@ Issues = "https://github.com/ddavidgao/purdue-dining-mcp/issues"
 
 [project.scripts]
 purdue-dining = "purdue_menu.server:main"
+purdue-dining-remote = "purdue_menu.remote:main"
 
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]
