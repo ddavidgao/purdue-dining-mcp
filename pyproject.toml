@@ -1,0 +1,20 @@
+[project]
+name = "purdue-menu"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Monkey Tikez", email = "davidgao1345@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.27.0",
+]
+
+[project.scripts]
+purdue-menu = "purdue_menu.server:main"
+
+[build-system]
+requires = ["uv_build>=0.11.3,<0.12.0"]
+build-backend = "uv_build"
