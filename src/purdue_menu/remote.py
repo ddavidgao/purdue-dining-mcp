@@ -9,7 +9,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from mcp.server.fastmcp import FastMCP
 
 from . import api
@@ -43,10 +43,22 @@ WORKFLOW when user says "I'm hungry" or asks about food:
 )
 
 
+FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<rect width="100" height="100" rx="20" fill="#CEB888"/>
+<text x="50" y="68" font-size="55" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" fill="#000">P</text>
+</svg>"""
+
+
 @mcp.custom_route("/", methods=["GET"])
 async def health_check(request: Request) -> JSONResponse:
     """Health check for ChatGPT connector wizard and monitoring."""
     return JSONResponse({"status": "ok", "name": "purdue-dining"})
+
+
+@mcp.custom_route("/favicon.ico", methods=["GET"])
+async def favicon(request: Request) -> Response:
+    """Serve a Purdue-gold favicon instead of Railway's default."""
+    return Response(content=FAVICON_SVG, media_type="image/svg+xml")
 
 
 # --- REST API endpoints for ChatGPT GPT Actions ---
