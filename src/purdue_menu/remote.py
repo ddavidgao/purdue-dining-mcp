@@ -8,6 +8,8 @@ import os
 from datetime import date, datetime
 from typing import Optional
 
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 from mcp.server.fastmcp import FastMCP
 
 from . import api
@@ -25,6 +27,12 @@ The user's preferences (allergies, favorites, dislikes, diet goals) are stored
 on YOUR side (in memory/project instructions), not on this server. Use them
 to filter the menu results you get back from the tools.""",
 )
+
+
+@mcp.custom_route("/", methods=["GET"])
+async def health_check(request: Request) -> JSONResponse:
+    """Health check for ChatGPT connector wizard and monitoring."""
+    return JSONResponse({"status": "ok", "name": "purdue-dining"})
 
 
 @mcp.tool()
