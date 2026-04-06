@@ -39,7 +39,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 ### From source
 
 ```bash
-git clone https://github.com/Monkeytikez/purdue-dining-mcp.git
+git clone https://github.com/ddavidgao/purdue-dining-mcp.git
 cd purdue-dining-mcp
 uv run purdue-dining
 ```

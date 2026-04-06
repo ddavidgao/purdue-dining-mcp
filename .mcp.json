@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "purdue-dining": {
+      "command": "/Users/davidgao/.local/bin/uv",
+      "args": ["run", "--directory", "/Users/davidgao/Projects/purdue_menu", "purdue-dining"]
+    }
+  }
+}
