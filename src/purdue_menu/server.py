@@ -11,10 +11,74 @@ mcp = FastMCP(
     name="purdue-dining",
     instructions="""You are a Purdue dining assistant that helps the user decide what to eat.
 You learn their preferences over time — what they like, where they eat, how they feel.
+
+IMPORTANT: On first interaction, ALWAYS call get_started first. If it says the user is new
+(no preferences or ratings), walk them through setup conversationally — ask about allergies,
+food they love, food they hate, where they usually eat, and any diet goals. Use set_preference
+to save each answer. Make it feel like a quick friendly chat, not a form.
+
 When they say "I'm hungry" or "I'm at Wiley", use the what_should_i_eat tool.
 When they tell you what they ate or rate food, use log_meal or rate_item.
 Be casual and helpful. You know the Purdue dining courts.""",
 )
+
+
+@mcp.tool()
+def get_started() -> str:
+    """Check if the user is new and needs onboarding setup.
+
+    ALWAYS call this on the first interaction in a conversation.
+    Returns the user's current profile status — if they're new (no preferences,
+    no ratings), the assistant should walk them through a friendly setup chat.
+
+    The setup should feel conversational, not like a form. Ask about:
+    1. Any food allergies or dietary restrictions
+    2. Foods they love (favorites)
+    3. Foods they hate (dislikes)
+    4. Which dining courts they usually go to
+    5. Any diet goals (high protein, vegetarian, etc.)
+
+    Then use set_preference to save each answer.
+    """
+    prefs = db.get_preferences()
+    ratings = db.get_ratings(limit=1)
+    meals = db.get_meal_history(limit=1)
+
+    total_prefs = sum(len(v) for v in prefs.values())
+    has_ratings = len(ratings) > 0
+    has_meals = len(meals) > 0
+
+    if total_prefs == 0 and not has_ratings and not has_meals:
+        return (
+            "NEW_USER: This user has no preferences, ratings, or meal history. "
+            "They need onboarding! Walk them through a quick, friendly setup chat. "
+            "Ask about allergies, favorite foods, foods they dislike, where they usually eat, "
+            "and any diet goals. Use set_preference to save each answer as you go. "
+            "Keep it conversational — don't dump all questions at once. "
+            "After setup, show them what's available right now with whats_open."
+        )
+
+    # Returning user — show their profile summary
+    lines = ["RETURNING_USER: Profile loaded."]
+    lines.append(f"  Preferences: {total_prefs} set")
+    if has_ratings:
+        all_ratings = db.get_ratings(limit=10000)
+        lines.append(f"  Ratings: {len(all_ratings)} items rated")
+    if has_meals:
+        all_meals = db.get_meal_history(limit=10000)
+        lines.append(f"  Meals logged: {len(all_meals)}")
+        loc_freq = db.get_location_frequency()
+        if loc_freq:
+            top = max(loc_freq, key=loc_freq.get)
+            lines.append(f"  Top location: {top} ({loc_freq[top]} visits)")
+
+    # Show profile
+    if prefs:
+        lines.append("\n  Current profile:")
+        for key, values in prefs.items():
+            lines.append(f"    {key}: {', '.join(values)}")
+
+    return "\n".join(lines)
 
 
 @mcp.tool()
