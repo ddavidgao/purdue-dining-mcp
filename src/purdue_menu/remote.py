@@ -49,6 +49,63 @@ async def health_check(request: Request) -> JSONResponse:
     return JSONResponse({"status": "ok", "name": "purdue-dining"})
 
 
+# --- REST API endpoints for ChatGPT GPT Actions ---
+# These let a GPT call the same logic via normal HTTP GET requests.
+
+@mcp.custom_route("/api/whats-open", methods=["GET"])
+async def rest_whats_open(request: Request) -> JSONResponse:
+    """REST endpoint: what's currently open."""
+    locations = await api.get_locations()
+    meals = api.parse_upcoming_meals(locations)
+    now = datetime.now().astimezone()
+
+    open_now = [
+        {
+            "location": m["location"],
+            "meal": m["meal_name"],
+            "start": m["start_fmt"],
+            "end": m["end_fmt"],
+            "minutes_left": int((m["end"] - now).total_seconds() / 60),
+        }
+        for m in meals if m["is_open"]
+    ]
+    upcoming = [
+        {
+            "location": m["location"],
+            "meal": m["meal_name"],
+            "start": m["start_fmt"],
+            "end": m["end_fmt"],
+        }
+        for m in sorted([m for m in meals if m["start"] > now], key=lambda x: x["start"])[:5]
+    ]
+    return JSONResponse({"time": now.strftime("%I:%M %p"), "open": open_now, "upcoming": upcoming})
+
+
+@mcp.custom_route("/api/menu/{location}", methods=["GET"])
+async def rest_get_menu(request: Request) -> JSONResponse:
+    """REST endpoint: get menu for a location. Optional ?meal=dinner query param."""
+    location = request.path_params["location"]
+    meal = request.query_params.get("meal")
+
+    menu_data = await api.get_menu(location)
+    if "error" in menu_data:
+        return JSONResponse({"error": menu_data["error"]}, status_code=404)
+
+    items = api.extract_items_from_menu(menu_data, meal_filter=meal)
+    loc_name = menu_data.get("Location", location)
+
+    if not items:
+        return JSONResponse({"location": loc_name, "meals": {}, "message": "No items found. Location may be closed."})
+
+    by_meal: dict[str, dict[str, list[str]]] = {}
+    for item in items:
+        mt = item["meal_type"]
+        st = item["station"]
+        by_meal.setdefault(mt, {}).setdefault(st, []).append(item["name"])
+
+    return JSONResponse({"location": loc_name, "date": date.today().isoformat(), "meals": by_meal})
+
+
 @mcp.tool()
 async def whats_open() -> str:
     """Check what Purdue dining locations are currently open right now.
