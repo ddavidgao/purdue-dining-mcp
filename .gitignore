@@ -12,5 +12,6 @@ wheels/
 # Runtime data
 data/
 
-# Local Claude settings (personal permissions)
+# Local Claude settings (personal permissions/plans)
 .claude/settings.local.json
+.claude/plans/

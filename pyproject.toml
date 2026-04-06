@@ -1,19 +1,31 @@
 [project]
-name = "purdue-menu"
+name = "purdue-dining"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP server for Purdue dining — personalized food recommendations that learn your taste over time"
 readme = "README.md"
-authors = [
-    { name = "Monkey Tikez", email = "davidgao1345@gmail.com" }
-]
+license = "MIT"
 requires-python = ">=3.12"
+keywords = ["mcp", "purdue", "dining", "food", "recommendations"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
 dependencies = [
     "httpx>=0.28.1",
     "mcp[cli]>=1.27.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Monkeytikez/purdue-dining-mcp"
+Repository = "https://github.com/Monkeytikez/purdue-dining-mcp"
+Issues = "https://github.com/Monkeytikez/purdue-dining-mcp/issues"
+
 [project.scripts]
-purdue-menu = "purdue_menu.server:main"
+purdue-dining = "purdue_menu.server:main"
 
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]
