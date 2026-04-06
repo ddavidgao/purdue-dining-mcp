@@ -1,6 +1,6 @@
 # purdue-dining
 
-A personalized Purdue dining assistant that pulls live menus and tells you what to eat. Works with Claude, ChatGPT, or as a local MCP server.
+A personalized Purdue dining assistant that pulls live menus and tells you what to eat. Works with ChatGPT, Claude, Gemini, or as a local MCP server.
 
 ## Quick Setup
 
@@ -21,6 +21,14 @@ Share your GPT link with friends and they can use it immediately.
 3. Start chatting — Claude will fetch menus when you ask
 
 Note: Claude uses web fetch to call the API. No Actions/plugins needed.
+
+### Gemini (works on phone)
+
+1. Go to [gemini.google.com](https://gemini.google.com) → Gem manager → New Gem
+2. Paste the contents of [`PROMPT.md`](PROMPT.md) into the Gem instructions
+3. Start chatting — Gemini will fetch menus when you ask
+
+Works the same as Claude — Gemini fetches the API URLs via web browsing.
 
 ### Claude Code / Claude Desktop (MCP — full features)
 
@@ -45,6 +53,7 @@ Add to your settings:
 |-------|-----------|-------------|--------------|---------|----------------|
 | ChatGPT GPT | Yes (API Actions) | In conversation | In conversation | In conversation | Yes |
 | Claude Project | Yes (web fetch) | In project instructions | In conversation | In conversation | Yes |
+| Gemini Gem | Yes (web browsing) | In Gem instructions | In conversation | In conversation | Yes |
 | MCP Server | Yes | SQLite (persistent) | SQLite (persistent) | SQLite (persistent) | No (desktop only) |
 
 ## MCP Server Tools
